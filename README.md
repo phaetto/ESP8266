@@ -6,13 +6,13 @@ At the moment the program space used is not optimized. I will add some updates w
 
 ## Features
  * Background async response to service using buffered input
- * Supports multiple modules on hardware, for one module per service.
+ * Supports multiple modules on hardware, by using one service per module.
  * Can do parallel tcp calls
  * Uses callbacks for async tcp responses
 
 ## Todo list
  * Integrate server capabilities and route requests
- * Better failure management in each state level using callbacks
+ * Better failure management on each service states using callbacks
 
 ## Example
 Follow the instructions on https://github.com/phaetto/PIC32-ESP8266-WifiExample
