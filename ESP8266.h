@@ -10,9 +10,13 @@ extern "C" {
 // Software options
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifndef RECEIVE_BUFFER_SIZE
 #define RECEIVE_BUFFER_SIZE             512
+#endif
 
+#ifndef MAX_REQUESTS_SUPPORTED
 #define MAX_REQUESTS_SUPPORTED          5
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // Imported for the default services
