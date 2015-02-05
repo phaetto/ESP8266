@@ -3,8 +3,6 @@
 #include "ESP8266.h"
 #include "WifiSendCommand.h"
 
-extern char wifiBuffer[RECEIVE_BUFFER_SIZE];
-extern unsigned short wifiBufferCounter;
 extern WifiServiceData DefaultWifiServiceData;
 
 static byte* WifiSendImplementation(const char* args[], struct CommandEngine* commandEngine)
