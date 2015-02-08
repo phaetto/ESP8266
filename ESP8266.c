@@ -315,6 +315,7 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
 
             wifiServiceData->WifiWriteString(wifiServiceData->CurrentRequest->RequestData);
             wifiServiceData->WifiWriteString(CMD_CRLF);
+            EmptyBuffer(wifiServiceData);
 
             return 0x0C;
         // Check if send [SEND OK]
@@ -337,7 +338,6 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             }
 
             wifiServiceData->CurrentRequest = NULL;
-            EmptyBuffer(wifiServiceData);
 
             // Return back to the main loop
             return 0x08;
