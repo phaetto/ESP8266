@@ -37,7 +37,7 @@ typedef void (*OnResponseReceived)(const char* responseBuffer);
 
 typedef struct {
     const char* RequestData;
-    const unsigned int RequestSize;
+    unsigned int RequestSize;
     const char* Hostname;
     const unsigned int Port;
     OnResponseReceived OnResponseReceived;
