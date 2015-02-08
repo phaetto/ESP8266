@@ -272,6 +272,17 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             return 0x09;
         // API Connection [OK]
         case 0x09:
+            if (strstr (wifiServiceData->WifiBuffer, "wdt reset") != NULL)
+            {
+                return Starting;
+            }
+
+            if (strstr (wifiServiceData->WifiBuffer, "busy now ...") != NULL)
+            {
+                EmptyBuffer(wifiServiceData);
+                return 0x08;
+            }
+            
             if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL
                     || strstr (wifiServiceData->WifiBuffer, "DNS Fail") != NULL)
             {
@@ -300,6 +311,12 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             if (strstr (wifiServiceData->WifiBuffer, "wdt reset") != NULL)
             {
                 return Starting;
+            }
+
+            if (strstr (wifiServiceData->WifiBuffer, "busy now ...") != NULL)
+            {
+                EmptyBuffer(wifiServiceData);
+                return 0x08;
             }
 
             if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL)
