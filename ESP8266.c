@@ -296,6 +296,11 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             return 0x0B;
         // Ready to send [>]
         case 0x0B:
+            if (strstr (wifiServiceData->WifiBuffer, "wdt reset") != NULL)
+            {
+                return Starting;
+            }
+
             if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL)
             {
                 EmptyBuffer(wifiServiceData);
@@ -313,6 +318,11 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             return 0x0C;
         // Check if send [SEND OK]
         case 0x0C:
+            if (strstr (wifiServiceData->WifiBuffer, "wdt reset") != NULL)
+            {
+                return Starting;
+            }
+            
             if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL)
             {
                 EmptyBuffer(wifiServiceData);
