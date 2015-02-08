@@ -93,9 +93,11 @@ void SendRequest(TcpRequest * tcpRequest, Service* service)
     WifiServiceData* data = GetWifiServiceData(service);
     unsigned short i;
 
+    tcpRequest->IsSending = 0;
+
     for(i = 0; i < 5; ++i)
     {
-        if (data->ActiveRequests[i] == NULL)
+        if (data->ActiveRequests[i] == NULL && data->ActiveRequests[i] != tcpRequest)
         {
             data->ActiveRequests[i] = tcpRequest;
             return;
