@@ -155,8 +155,7 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL
                     || strstr (wifiServiceData->WifiBuffer, "busy now") != NULL)
             {
-                EmptyBuffer(wifiServiceData);
-                return 0x00;
+                return Starting;
             }
 
             if (strstr (wifiServiceData->WifiBuffer, "ready") == NULL)
