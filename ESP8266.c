@@ -125,6 +125,7 @@ void DisconnectAccessPoint(Service* service)
 void ResetWifiModule(Service* service)
 {
     service->State = Starting;
+    EmptyBuffer(GetWifiServiceData(service->Data));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
