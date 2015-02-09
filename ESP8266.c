@@ -282,6 +282,12 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
                 EmptyBuffer(wifiServiceData);
                 return 0x08;
             }
+
+            if (strstr (wifiServiceData->WifiBuffer, CMD_CRLF "OK" CMD_CRLF "Unlink") != NULL)
+            {
+                // Connection dropped - this port might not be served
+                return 0x08;
+            }
             
             if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL
                     || strstr (wifiServiceData->WifiBuffer, "DNS Fail") != NULL)
