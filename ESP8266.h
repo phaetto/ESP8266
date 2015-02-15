@@ -11,11 +11,19 @@ extern "C" {
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifndef RECEIVE_BUFFER_SIZE
-#define RECEIVE_BUFFER_SIZE             512
+#define RECEIVE_BUFFER_SIZE                     512
 #endif
 
 #ifndef MAX_REQUESTS_SUPPORTED
-#define MAX_REQUESTS_SUPPORTED          5
+#define MAX_REQUESTS_SUPPORTED                  5
+#endif
+
+#ifndef TIMEOUT_SERVICE_CYCLES
+#define TIMEOUT_SERVICE_CYCLES                  0xFFF
+#endif
+
+#ifndef RESPONSE_TIMEOUT_SERVICE_CYCLES
+#define RESPONSE_TIMEOUT_SERVICE_CYCLES          0xFF
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,7 +41,7 @@ typedef struct {
     const char* Pass;
 } AccessPointConnection;
 
-typedef void (*OnResponseReceived)(const char* responseBuffer);
+typedef void (*OnResponseReceived)(const char* responseBuffer, void * data);
 
 typedef struct {
     const char* Hostname;
@@ -49,6 +57,7 @@ typedef struct {
     unsigned int RequestSize;
     TcpConnection* Connection;
     // Private fields
+    void * Data;
     byte IsSending : 1;
     byte IsSent : 1;
 } TcpRequest;
@@ -74,11 +83,11 @@ extern byte ServiceWifiImplementation(byte state, void* data, struct CommandEngi
 
 extern Service DefaultWifiService;
 
-extern void SendRequest(TcpRequest * tcpRequest, Service* service);
-extern void ConnectToAccessPoint(AccessPointConnection* accessPointConnection, Service* service);
-extern void DisconnectAccessPoint(Service* service);
-extern void ResetWifiModule(Service* service);
-extern void PutcToWifiReceivedBuffer(const char rchar, Service* service);
+void SendRequest(TcpRequest * tcpRequest, Service* service);
+void ConnectToAccessPoint(AccessPointConnection* accessPointConnection, Service* service);
+void DisconnectAccessPoint(Service* service);
+void ResetWifiModule(Service* service);
+void PutcToWifiReceivedBuffer(const char rchar, Service* service);
 
 #ifdef	__cplusplus
 }

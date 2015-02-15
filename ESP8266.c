@@ -22,7 +22,7 @@ extern int sscanf(const char *, const char *, ...);
 extern char * strncpy(char *, const char *, size_t);
 extern char * strcpy(char *, const char *);
 
-static char * strstr(const char * searchee, const char * lookfor)
+char * strstr(const char * searchee, const char * lookfor)
 {
     if (*searchee == 0)
     {
@@ -303,7 +303,7 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             }
 
             wifiServiceData->ActiveRequest->Connection->IsConnected = 1;
-            //EmptyBuffer(wifiServiceData);
+            EmptyBuffer(wifiServiceData);
 
             return 0x0A;
         // Send http request
@@ -339,7 +339,8 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             }
 
             wifiServiceData->WifiWriteString(wifiServiceData->ActiveRequest->RequestData);
-            //EmptyBuffer(wifiServiceData);
+            wifiServiceData->WifiWriteString(CMD_CRLF);
+            EmptyBuffer(wifiServiceData);
 
             return 0x0C;
         // Check if send [SEND OK]
@@ -366,7 +367,7 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
                 return 0x0C;
             }
 
-            wifiServiceData->Timeout = 0xFFFF;
+            wifiServiceData->Timeout = TIMEOUT_SERVICE_CYCLES;
 
             return 0x0D;
         // Getting response [+IPD / ending OK]
@@ -415,15 +416,31 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
                 strncpy(responseBuffer, tcpResponseStart, responseSize);
                 responseBuffer[responseSize] = '\0';
 
-                wifiServiceData->ActiveRequest->Connection->OnResponseReceived(responseBuffer);
+                wifiServiceData->ActiveRequest->Connection->OnResponseReceived(responseBuffer, wifiServiceData->ActiveRequest->Data);
             }
 
             tcpResponseStart += (responseSize + 4); // Response + CRLF + "OK"
             AdvanceBuffer(wifiServiceData, tcpResponseStart);
 
+            wifiServiceData->Timeout = RESPONSE_TIMEOUT_SERVICE_CYCLES;
+
+            return 0x0E;
+        }
+        // Wait a bit for more response - finalize request
+        case 0x0E:
             if (strstr (wifiServiceData->WifiBuffer, "+IPD") != NULL)
             {
+                wifiServiceData->Timeout = TIMEOUT_SERVICE_CYCLES;
                 return 0x0D;
+            }
+            else
+            {
+                --wifiServiceData->Timeout;
+
+                if (wifiServiceData->Timeout != 0)
+                {
+                    return 0x0E;
+                }
             }
 
             // Request has been finalized
@@ -431,7 +448,6 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             wifiServiceData->ActiveRequest->IsSent = 1;
 
             return 0x08;
-        }
         // Close connection
         case 0x20:
             sprintf(formattedString, "AT+CIPCLOSE=%d" CMD_CRLF, wifiServiceData->CurrentRequestId);
