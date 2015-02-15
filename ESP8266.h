@@ -36,25 +36,34 @@ typedef struct {
 typedef void (*OnResponseReceived)(const char* responseBuffer);
 
 typedef struct {
-    const char* RequestData;
-    unsigned int RequestSize;
     const char* Hostname;
     const unsigned int Port;
     OnResponseReceived OnResponseReceived;
     // Private fields
-    unsigned short RequestId;
+    unsigned short Id;
+    byte IsConnected : 1;
+} TcpConnection;
+
+typedef struct {
+    const char* RequestData;
+    unsigned int RequestSize;
+    TcpConnection* Connection;
+    // Private fields
     byte IsSending : 1;
+    byte IsSent : 1;
 } TcpRequest;
 
 typedef void (*WifiUARTWriteString)(const char *string);
 
 typedef struct {
     WifiUARTWriteString WifiWriteString;
-    char WifiBuffer[RECEIVE_BUFFER_SIZE];
+    byte WifiBuffer[RECEIVE_BUFFER_SIZE];
     unsigned short WifiBufferCounter;
     AccessPointConnection* AccessPointConnection;
-    TcpRequest* ActiveRequests[MAX_REQUESTS_SUPPORTED];
-    TcpRequest* CurrentRequest;
+    TcpRequest* ActiveRequest;
+    TcpRequest* QueuedRequests[MAX_REQUESTS_SUPPORTED];
+    unsigned short CurrentRequestId;
+    unsigned int Timeout;
 } WifiServiceData;
 
 extern byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* commandEngine);

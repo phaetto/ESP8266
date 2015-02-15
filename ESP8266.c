@@ -1,6 +1,7 @@
 
 #include "../Commands/commands.h"
 #include "ESP8266.h"
+#include <stddef.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 // Buffers and global variables
@@ -18,6 +19,7 @@ WifiServiceData DefaultWifiServiceData = {
 
 extern int sprintf(char *, const char *, ...);
 extern int sscanf(const char *, const char *, ...);
+extern char * strncpy(char *, const char *, size_t);
 extern char * strcpy(char *, const char *);
 
 static char * strstr(const char * searchee, const char * lookfor)
@@ -64,6 +66,14 @@ static void EmptyBuffer(WifiServiceData* data)
     data->WifiBuffer[0] = '\0';
 }
 
+static void AdvanceBuffer(WifiServiceData* data, byte* endingPattern)
+{
+    strcpy(data->WifiBuffer, endingPattern);
+    unsigned int charactersLeft = endingPattern - data->WifiBuffer;
+    data->WifiBufferCounter = data->WifiBufferCounter - charactersLeft;
+    data->WifiBuffer[data->WifiBufferCounter] = '\0';
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Wifi public api
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,14 +103,12 @@ void SendRequest(TcpRequest * tcpRequest, Service* service)
     WifiServiceData* data = GetWifiServiceData(service);
     unsigned short i;
 
-    tcpRequest->IsSending = 0;
-
-    for(i = 0; i < 5; ++i)
+    for(i = 0; i < MAX_REQUESTS_SUPPORTED; ++i)
     {
-        if (data->ActiveRequests[i] == NULL && data->ActiveRequests[i] != tcpRequest)
+        if (data->QueuedRequests[i] == NULL)
         {
-            data->ActiveRequests[i] = tcpRequest;
-            return;
+            data->QueuedRequests[i] = tcpRequest;
+            break;
         }
     }
 }
@@ -127,7 +135,10 @@ void DisconnectAccessPoint(Service* service)
 void ResetWifiModule(Service* service)
 {
     service->State = Starting;
-    EmptyBuffer(GetWifiServiceData(service->Data));
+    WifiServiceData* data = GetWifiServiceData(service);
+    data->ActiveRequest->IsSending = 0;
+    data->ActiveRequest->Connection->IsConnected = 0;
+    EmptyBuffer(data);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,8 +165,7 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             return 0x01;
         // Starting [ready]:
         case 0x01:
-            if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL
-                    || strstr (wifiServiceData->WifiBuffer, "busy now") != NULL)
+            if (strstr (wifiServiceData->WifiBuffer, "busy now") != NULL)
             {
                 return Starting;
             }
@@ -174,12 +184,6 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             return 0x03;
         // Setup [OK]
         case 0x03:
-            if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL)
-            {
-                EmptyBuffer(wifiServiceData);
-                return 0x02;
-            }
-
             if (strstr (wifiServiceData->WifiBuffer, "OK") == NULL
                     && strstr (wifiServiceData->WifiBuffer, "no change") == NULL)
             {
@@ -202,14 +206,8 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             wifiServiceData->WifiWriteString(wifiServiceData->AccessPointConnection->Pass);
             wifiServiceData->WifiWriteString("\"" CMD_CRLF);
             return 0x05;
-        // Connec [OK]
+        // Connect [OK]
         case 0x05:
-            if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL)
-            {
-                EmptyBuffer(wifiServiceData);
-                return 0x04;
-            }
-
             if (strstr (wifiServiceData->WifiBuffer, "OK") == NULL)
             {
                 return 0x05;
@@ -224,12 +222,6 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             return 0x07;
         //  Multiple connections [OK]
         case 0x07:
-            if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL)
-            {
-                EmptyBuffer(wifiServiceData);
-                return 0x06;
-            }
-
             if (strstr (wifiServiceData->WifiBuffer, "OK") == NULL)
             {
                 return 0x07;
@@ -242,32 +234,47 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
         case 0x08:
             // Main loop:
             //  - Checks if there is a request and starts it if possible
-            //  - Checks if there is a response coming in from the module
 
-            if (strstr (wifiServiceData->WifiBuffer, "+IPD") != NULL)
+            if (wifiServiceData->ActiveRequest == NULL
+                    || wifiServiceData->ActiveRequest->IsSent)
             {
-                return 0x0D;
-            }
-
-            for(i = 0; i < MAX_REQUESTS_SUPPORTED; ++i)
-            {
-                if (wifiServiceData->ActiveRequests[i] != NULL && !wifiServiceData->ActiveRequests[i]->IsSending)
+                for(i = 0; i < MAX_REQUESTS_SUPPORTED; ++i)
                 {
-                    wifiServiceData->CurrentRequest = wifiServiceData->ActiveRequests[i];
-                    wifiServiceData->CurrentRequest->RequestId = i;
-                    break;
+                    if (wifiServiceData->QueuedRequests[i] != NULL)
+                    {
+                        if (wifiServiceData->ActiveRequest != NULL
+                                && wifiServiceData->ActiveRequest->Connection->IsConnected
+                                && wifiServiceData->ActiveRequest->Connection != wifiServiceData->QueuedRequests[i]->Connection)
+                        {
+                            EmptyBuffer(wifiServiceData);
+                            return 0x20;
+                        }
+
+                        wifiServiceData->ActiveRequest = wifiServiceData->QueuedRequests[i];
+                        wifiServiceData->QueuedRequests[i] = NULL;
+                        wifiServiceData->ActiveRequest->IsSending = 0;
+                        wifiServiceData->ActiveRequest->IsSent = 0;
+
+                        if (wifiServiceData->ActiveRequest->Connection->IsConnected)
+                        {
+                            return 0x0A;
+                        }
+
+                        break;
+                    }
                 }
             }
 
-            if (wifiServiceData->CurrentRequest == NULL)
+            if (wifiServiceData->ActiveRequest == NULL
+                    || wifiServiceData->ActiveRequest->IsSent)
             {
                 return 0x08;
             }
 
             sprintf(formattedString, "AT+CIPSTART=%d,\"TCP\",\"%s\",%d" CMD_CRLF,
-                wifiServiceData->CurrentRequest->RequestId,
-                wifiServiceData->CurrentRequest->Hostname,
-                wifiServiceData->CurrentRequest->Port);
+                wifiServiceData->ActiveRequest->Connection->Id,
+                wifiServiceData->ActiveRequest->Connection->Hostname,
+                wifiServiceData->ActiveRequest->Connection->Port);
             wifiServiceData->WifiWriteString(formattedString);
             return 0x09;
         // API Connection [OK]
@@ -277,148 +284,169 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
                 return Starting;
             }
 
-            if (strstr (wifiServiceData->WifiBuffer, "busy now ...") != NULL)
-            {
-                EmptyBuffer(wifiServiceData);
-                return 0x08;
-            }
-
             if (strstr (wifiServiceData->WifiBuffer, CMD_CRLF "OK" CMD_CRLF "Unlink") != NULL)
             {
                 // Connection dropped - this port might not be served
                 return 0x08;
             }
             
-            if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL
-                    || strstr (wifiServiceData->WifiBuffer, "DNS Fail") != NULL)
+            if (strstr (wifiServiceData->WifiBuffer, "DNS Fail") != NULL)
             {
                 EmptyBuffer(wifiServiceData);
                 return 0x08;
             }
 
-            if (strstr (wifiServiceData->WifiBuffer, "OK") == NULL)
+            if (strstr (wifiServiceData->WifiBuffer, CMD_CRLF "OK") == NULL
+                    && strstr (wifiServiceData->WifiBuffer, CMD_CRLF "ALREAY CONNECT") == NULL)
             {
                 return 0x09;
             }
 
-            wifiServiceData->CurrentRequest->IsSending = 1;
-            EmptyBuffer(wifiServiceData);
+            wifiServiceData->ActiveRequest->Connection->IsConnected = 1;
+            //EmptyBuffer(wifiServiceData);
 
             return 0x0A;
         // Send http request
         case 0x0A:
+            wifiServiceData->ActiveRequest->IsSending = 1;
             sprintf(formattedString, "AT+CIPSEND=%d,%d" CMD_CRLF,
-                    wifiServiceData->CurrentRequest->RequestId,
-                    wifiServiceData->CurrentRequest->RequestSize);
+                    wifiServiceData->ActiveRequest->Connection->Id,
+                    wifiServiceData->ActiveRequest->RequestSize);
             wifiServiceData->WifiWriteString(formattedString);
             return 0x0B;
         // Ready to send [>]
         case 0x0B:
             if (strstr (wifiServiceData->WifiBuffer, "wdt reset") != NULL)
             {
+                wifiServiceData->ActiveRequest->IsSending = 0;
+                wifiServiceData->ActiveRequest->Connection->IsConnected = 0;
+                EmptyBuffer(wifiServiceData);
                 return Starting;
             }
 
-            if (strstr (wifiServiceData->WifiBuffer, "busy now ...") != NULL)
+            if (strstr (wifiServiceData->WifiBuffer, "link is not") != NULL)
             {
+                // The connection is not up - we might need to reconnect
+                wifiServiceData->ActiveRequest->IsSending = 0;
+                wifiServiceData->ActiveRequest->Connection->IsConnected = 0;
                 EmptyBuffer(wifiServiceData);
                 return 0x08;
             }
 
-            if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL)
-            {
-                EmptyBuffer(wifiServiceData);
-                return 0x0A;
-            }
-
-            if (strstr (wifiServiceData->WifiBuffer, ">") == NULL)
+            if (strstr (wifiServiceData->WifiBuffer, "> ") == NULL)
             {
                 return 0x0B;
             }
 
-            wifiServiceData->WifiWriteString(wifiServiceData->CurrentRequest->RequestData);
-            wifiServiceData->WifiWriteString(CMD_CRLF);
-            EmptyBuffer(wifiServiceData);
+            wifiServiceData->WifiWriteString(wifiServiceData->ActiveRequest->RequestData);
+            //EmptyBuffer(wifiServiceData);
 
             return 0x0C;
         // Check if send [SEND OK]
         case 0x0C:
             if (strstr (wifiServiceData->WifiBuffer, "wdt reset") != NULL)
             {
+                wifiServiceData->ActiveRequest->IsSending = 0;
+                wifiServiceData->ActiveRequest->Connection->IsConnected = 0;
+                EmptyBuffer(wifiServiceData);
                 return Starting;
             }
             
-            if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL)
+            if (strstr (wifiServiceData->WifiBuffer, "Unlink") != NULL)
             {
+                wifiServiceData->ActiveRequest->IsSending = 0;
+                wifiServiceData->ActiveRequest->Connection->IsConnected = 0;
                 EmptyBuffer(wifiServiceData);
-                return 0x0A;
+                return 0x08;
             }
 
             // Loop to make sure the connection succeeded
-            if (strstr (wifiServiceData->WifiBuffer, "SEND OK") == NULL)
+            if (strstr (wifiServiceData->WifiBuffer, CMD_CRLF "SEND OK") == NULL)
             {
                 return 0x0C;
             }
 
-            wifiServiceData->CurrentRequest = NULL;
+            wifiServiceData->Timeout = 0xFFFF;
 
-            // Return back to the main loop
-            return 0x08;
+            return 0x0D;
         // Getting response [+IPD / ending OK]
         case 0x0D:
-            if (strstr (wifiServiceData->WifiBuffer, "ERROR") != NULL)
-            {
-                EmptyBuffer(wifiServiceData);
-                return 0x0A;
-            }
-
+        {
             byte* responseStart = strstr (wifiServiceData->WifiBuffer, "+IPD");
-            byte* responseOkAfterStart = strstr (responseStart, "OK");
-            if (responseOkAfterStart == NULL)
+            if (responseStart == NULL)
             {
-                // We need to wait until the full response arrives
+                --wifiServiceData->Timeout;
+
+                if (wifiServiceData->Timeout == 0)
+                {
+                    // Resend response
+                    return 0x0A;
+                }
+
+                // We need to wait until the response arrives
                 return 0x0D;
             }
+
+            byte* tcpResponseStart = strstr (responseStart, ":");
+            if (tcpResponseStart == NULL)
+            {
+                // We need to wait until the full header arrives
+                return 0x0D;
+            }
+
+            ++tcpResponseStart; // Move it one position forward
 
             // Decode the response and call the respective connection handler
             unsigned short connectionId;
             unsigned int responseSize;
-            byte responseBuffer[2048] = { '\0' };
+            byte responseBuffer[RECEIVE_BUFFER_SIZE];
             // Format is: +IPD,[connection #],[response size]:[data] CMD_CRLF OK
             sscanf(responseStart, "+IPD,%hu,%u:", &connectionId, &responseSize);
-            if (wifiServiceData->ActiveRequests[connectionId]->OnResponseReceived != NULL)
+
+            unsigned int bytesFromStart = (tcpResponseStart - wifiServiceData->WifiBuffer);
+            if (wifiServiceData->WifiBufferCounter < (responseSize + bytesFromStart))
             {
-                byte* tcpResponseStart = strstr (responseStart, ":");
-                ++tcpResponseStart; // Move it one position forward
-                strcpy(responseBuffer, tcpResponseStart);
+                // Response is not yet full on buffer
+                return 0x0D;
+            }
+
+            if (wifiServiceData->ActiveRequest->Connection->OnResponseReceived != NULL)
+            {
+                strncpy(responseBuffer, tcpResponseStart, responseSize);
                 responseBuffer[responseSize] = '\0';
 
-                wifiServiceData->ActiveRequests[connectionId]->OnResponseReceived(responseBuffer);
+                wifiServiceData->ActiveRequest->Connection->OnResponseReceived(responseBuffer);
+            }
+
+            tcpResponseStart += (responseSize + 4); // Response + CRLF + "OK"
+            AdvanceBuffer(wifiServiceData, tcpResponseStart);
+
+            if (strstr (wifiServiceData->WifiBuffer, "+IPD") != NULL)
+            {
+                return 0x0D;
             }
 
             // Request has been finalized
-            wifiServiceData->ActiveRequests[connectionId]->IsSending = 0;
-            wifiServiceData->ActiveRequests[connectionId] = NULL;
-
-            EmptyBuffer(wifiServiceData);
+            wifiServiceData->ActiveRequest->IsSending = 0;
+            wifiServiceData->ActiveRequest->IsSent = 1;
 
             return 0x08;
-        // Close connection [On demand]
-        case 0x10:
-            sprintf(formattedString, "AT+CIPCLOSE=%d" CMD_CRLF, wifiServiceData->CurrentRequest->RequestId);
+        }
+        // Close connection
+        case 0x20:
+            sprintf(formattedString, "AT+CIPCLOSE=%d" CMD_CRLF, wifiServiceData->CurrentRequestId);
             wifiServiceData->WifiWriteString(formattedString);
-            return 0x11;
+            return 0x21;
         // Connection closed
-        case 0x11:
-            if (strstr (wifiServiceData->WifiBuffer, "unlinked") == NULL
-                    || strstr (wifiServiceData->WifiBuffer, "link is not") == NULL)
+        case 0x21:
+            if (strstr (wifiServiceData->WifiBuffer, CMD_CRLF "OK" CMD_CRLF "Unlink") == NULL
+                    && strstr (wifiServiceData->WifiBuffer, CMD_CRLF "link is not") == NULL)
             {
-                return 0x11;
+                return 0x21;
             }
 
             // Request has been finalized
-            wifiServiceData->ActiveRequests[wifiServiceData->CurrentRequest->RequestId] = NULL;
-            wifiServiceData->CurrentRequest = NULL;
+            wifiServiceData->ActiveRequest->Connection->IsConnected = 0;
 
             EmptyBuffer(wifiServiceData);
 
