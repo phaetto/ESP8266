@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 #ifndef RESPONSE_TIMEOUT_SERVICE_CYCLES
-#define RESPONSE_TIMEOUT_SERVICE_CYCLES          0xFF
+#define RESPONSE_TIMEOUT_SERVICE_CYCLES          0xFFFF
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
