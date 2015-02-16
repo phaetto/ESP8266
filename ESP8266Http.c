@@ -10,7 +10,7 @@ extern char * strstr(const char * searchee, const char * lookfor);
 extern char * strcpy(char *, const char *);
 extern size_t strlen(const char *);
 
-static byte HttpBuffer[0xFFF];
+static byte HttpBuffer[HTTP_BUFFER_SIZE];
 
 void ParseTcpResponse(const char* responseBuffer, void * data)
 {
