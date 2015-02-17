@@ -136,8 +136,11 @@ void ResetWifiModule(Service* service)
 {
     service->State = Starting;
     WifiServiceData* data = GetWifiServiceData(service);
-    data->ActiveRequest->IsSending = 0;
-    data->ActiveRequest->Connection->IsConnected = 0;
+    if (data->ActiveRequest != NULL)
+    {
+        data->ActiveRequest->IsSending = 0;
+        data->ActiveRequest->Connection->IsConnected = 0;
+    }
     EmptyBuffer(data);
 }
 
