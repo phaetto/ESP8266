@@ -22,8 +22,8 @@ extern "C" {
 #define TIMEOUT_SERVICE_CYCLES                  0xFFF
 #endif
 
-#ifndef RESPONSE_TIMEOUT_SERVICE_CYCLES
-#define RESPONSE_TIMEOUT_SERVICE_CYCLES          0xFFFF
+#ifndef MULTI_RESPONSE_TIMEOUT_SERVICE_CYCLES
+#define MULTI_RESPONSE_TIMEOUT_SERVICE_CYCLES   0xFFFF
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////

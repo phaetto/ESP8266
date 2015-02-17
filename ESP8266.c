@@ -418,7 +418,7 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             tcpResponseStart += (responseSize + 4); // Response + CRLF + "OK"
             AdvanceBuffer(wifiServiceData, tcpResponseStart);
 
-            wifiServiceData->Timeout = RESPONSE_TIMEOUT_SERVICE_CYCLES;
+            wifiServiceData->Timeout = MULTI_RESPONSE_TIMEOUT_SERVICE_CYCLES;
 
             return 0x0E;
         }
