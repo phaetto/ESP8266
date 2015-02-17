@@ -168,11 +168,6 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             return 0x01;
         // Starting [ready]:
         case 0x01:
-            if (strstr (wifiServiceData->WifiBuffer, "busy now") != NULL)
-            {
-                return Starting;
-            }
-
             if (strstr (wifiServiceData->WifiBuffer, "ready") == NULL)
             {
                 return 0x01;
