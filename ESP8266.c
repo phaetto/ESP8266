@@ -301,7 +301,6 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             }
 
             wifiServiceData->ActiveRequest->Connection->IsConnected = 1;
-            EmptyBuffer(wifiServiceData);
 
             return 0x0A;
         // Send http request
@@ -338,7 +337,6 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
 
             wifiServiceData->WifiWriteString(wifiServiceData->ActiveRequest->RequestData);
             wifiServiceData->WifiWriteString(CMD_CRLF);
-            EmptyBuffer(wifiServiceData);
 
             return 0x0C;
         // Check if send [SEND OK]
