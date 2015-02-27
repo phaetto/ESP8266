@@ -46,9 +46,21 @@ void ParseTcpResponse(const char* responseBuffer, void * data)
     }
     else
     {
-        // This is one after the first part
-        strcpy(HttpBuffer + httpRequest->BytesReceived, responseBuffer);
-        httpRequest->BytesReceived += strlen(responseBuffer);
+        unsigned int bytesReceivedLength = strlen(responseBuffer);
+        if (httpRequest->ContentLength >= (httpRequest->BytesReceived + bytesReceivedLength))
+        {
+            if (HTTP_BUFFER_SIZE > (httpRequest->BytesReceived + bytesReceivedLength))
+            {
+                // This is one after the first part
+                strcpy(HttpBuffer + httpRequest->BytesReceived, responseBuffer);
+                httpRequest->BytesReceived += bytesReceivedLength;
+            }
+            else
+            {
+                // We have a buffer overflow
+                return;
+            }
+        }
 
         if (httpRequest->ContentLength == httpRequest->BytesReceived)
         {
