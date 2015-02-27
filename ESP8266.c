@@ -274,9 +274,18 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
                 wifiServiceData->ActiveRequest->Connection->Hostname,
                 wifiServiceData->ActiveRequest->Connection->Port);
             wifiServiceData->WifiWriteString(formattedString);
+            wifiServiceData->Timeout = TIMEOUT_SERVICE_CYCLES;
             return 0x09;
         // API Connection [OK]
         case 0x09:
+            --wifiServiceData->Timeout;
+
+            if (wifiServiceData->Timeout == 0)
+            {
+                EmptyBuffer(wifiServiceData);
+                return 0x08;
+            }
+            
             if (strstr (wifiServiceData->WifiBuffer, "wdt reset") != NULL)
             {
                 return Starting;
@@ -310,9 +319,21 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
                     wifiServiceData->ActiveRequest->Connection->Id,
                     wifiServiceData->ActiveRequest->RequestSize);
             wifiServiceData->WifiWriteString(formattedString);
+            wifiServiceData->Timeout = TIMEOUT_SERVICE_CYCLES;
             return 0x0B;
         // Ready to send [>]
         case 0x0B:
+            --wifiServiceData->Timeout;
+
+            if (wifiServiceData->Timeout == 0)
+            {
+                // Something went wrong - resend response
+                wifiServiceData->ActiveRequest->IsSending = 0;
+                wifiServiceData->ActiveRequest->Connection->IsConnected = 0;
+                EmptyBuffer(wifiServiceData);
+                return 0x08;
+            }
+            
             if (strstr (wifiServiceData->WifiBuffer, "wdt reset") != NULL)
             {
                 wifiServiceData->ActiveRequest->IsSending = 0;
@@ -369,17 +390,20 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
         // Getting response [+IPD / ending OK]
         case 0x0D:
         {
+            --wifiServiceData->Timeout;
+
+            if (wifiServiceData->Timeout == 0)
+            {
+                // Something went wrong - resend response
+                wifiServiceData->ActiveRequest->IsSending = 0;
+                wifiServiceData->ActiveRequest->Connection->IsConnected = 0;
+                EmptyBuffer(wifiServiceData);
+                return 0x08;
+            }
+
             byte* responseStart = strstr (wifiServiceData->WifiBuffer, "+IPD");
             if (responseStart == NULL)
             {
-                --wifiServiceData->Timeout;
-
-                if (wifiServiceData->Timeout == 0)
-                {
-                    // Resend response
-                    return 0x0A;
-                }
-
                 // We need to wait until the response arrives
                 return 0x0D;
             }
@@ -433,7 +457,7 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
             {
                 --wifiServiceData->Timeout;
 
-                if (wifiServiceData->Timeout != 0)
+                if (wifiServiceData->Timeout > 0)
                 {
                     return 0x0E;
                 }
