@@ -303,7 +303,7 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
                 return 0x08;
             }
 
-            if (strstr (wifiServiceData->WifiBuffer, CMD_CRLF "OK") == NULL
+            if (strstr (wifiServiceData->WifiBuffer, CMD_CRLF "OK" CMD_CRLF "Linked") == NULL
                     && strstr (wifiServiceData->WifiBuffer, CMD_CRLF "ALREAY CONNECT") == NULL)
             {
                 return 0x09;
