@@ -269,6 +269,8 @@ byte ServiceWifiImplementation(byte state, void* data, struct CommandEngine* com
                 return 0x08;
             }
 
+            EmptyBuffer(wifiServiceData);
+
             sprintf(formattedString, "AT+CIPSTART=%d,\"TCP\",\"%s\",%d" CMD_CRLF,
                 wifiServiceData->ActiveRequest->Connection->Id,
                 wifiServiceData->ActiveRequest->Connection->Hostname,
